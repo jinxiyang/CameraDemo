@@ -14,19 +14,16 @@ import android.view.TextureView
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.appcompat.app.AppCompatActivity
-import io.github.jinxiyang.camerademo.common.AspectRatio
-import io.github.jinxiyang.camerademo.common.OutputSize
-import io.github.jinxiyang.camerademo.common.OutputSizeMap
+import io.github.jinxiyang.camerademo.common.*
 import io.github.jinxiyang.requestpermission.PermissionRequester
 import io.github.jinxiyang.requestpermission.utils.PermissionUtils
-import java.util.Arrays
+import java.util.*
 import kotlin.math.max
 import kotlin.math.min
 
 class Camera2Activity : AppCompatActivity() {
 
-    private lateinit var flContainer: FrameLayout
-    private lateinit var mTextureView: TextureView
+    private lateinit var cameraView: CameraView
 
     private var requestCameraPermission = false
 
@@ -42,60 +39,25 @@ class Camera2Activity : AppCompatActivity() {
 
     private val mOutputSizeMap: OutputSizeMap = OutputSizeMap()
 
-    private val mPreviewViewSize: Point = Point(0, 0)
-
-    private var mOutputSize: OutputSize? = null
+//    private val mPreviewViewSize: Point = Point(0, 0)
+//
+//    private var mOutputSize: OutputSize? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_camera2)
-        flContainer = findViewById(R.id.container)
+        cameraView = findViewById(R.id.cameraView)
 
-        addPreviewView()
+
         openCameraIfHasPermission()
-    }
+        cameraView.getPreviewView().setCallback(object : PreviewView.Callback {
 
-    private fun addPreviewView() {
-        val textureView = TextureView(this)
-        textureView.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
-            override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
-                Log.i(TAG, "onSurfaceTextureAvailable: $width  $height")
-                setPreviewSize(width, height)
-                onSurfaceChanged()
+            override fun onSurfaceChanged() {
+                createCaptureSession()
             }
 
-            override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {
-                setPreviewSize(width, height)
-                Log.i(TAG, "onSurfaceTextureSizeChanged:  $width  $height")
-                onSurfaceChanged()
-            }
-
-            override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
-                setPreviewSize(0, 0)
-                Log.i(TAG, "onSurfaceTextureDestroyed: ")
-                return true
-            }
-
-            override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {
-            }
-
-        }
-        val layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-        layoutParams.gravity = Gravity.CENTER
-        flContainer.addView(textureView, layoutParams)
-        mTextureView = textureView
+        })
     }
-
-    private fun setPreviewSize(width: Int, height: Int) {
-        mPreviewViewSize.set(width, height)
-    }
-
-    private fun onSurfaceChanged() {
-        Log.i(TAG, "onSurfaceChanged: ")
-        createCaptureSession()
-    }
-
-    private fun isPreviewViewReady() = mTextureView.surfaceTexture != null
 
     private fun openCameraIfHasPermission() {
         if (PermissionUtils.hasPermissions(this, PermissionUtils.CAMERA_PERMISSIONS)) {
@@ -123,7 +85,6 @@ class Camera2Activity : AppCompatActivity() {
             return
         }
         mCameraInfo = cameraInfo
-//        chooseOptimalSize()
         openCameraInternal(cameraInfo)
     }
 
@@ -194,23 +155,30 @@ class Camera2Activity : AppCompatActivity() {
     }
 
     private fun createCaptureSessionInternal() {
-        if (mPreviewViewSize.y == 1920) {
+        if (mPreviewViewSize.y == 640) {
             val surfaceTexture = mTextureView.surfaceTexture!!
             val surface = Surface(surfaceTexture)
             val request = mCameraDevice!!.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
             request.addTarget(surface)
-            mCameraDevice?.createCaptureSession(Arrays.asList(surface), object :
-                CameraCaptureSession.StateCallback() {
+
+            val captureSessionStateCallback = object : CameraCaptureSession.StateCallback() {
                 override fun onConfigured(session: CameraCaptureSession) {
-                    session.setRepeatingRequest(request.build(), null, null )
+                    session.setRepeatingRequest(request.build(), null, null)
                 }
 
                 override fun onConfigureFailed(session: CameraCaptureSession) {
 
                 }
 
-            }, null)
-
+            }
+//            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+//                val outputConfigurationList = mutableListOf<OutputConfiguration>()
+//                outputConfigurationList.add(OutputConfiguration(surface))
+//                val sessionConfiguration =  SessionConfiguration(SessionConfiguration.SESSION_REGULAR, outputConfigurationList, null, captureSessionStateCallback)
+//                mCameraDevice?.createCaptureSession(sessionConfiguration)
+//            } else {
+                mCameraDevice?.createCaptureSession(Arrays.asList(surface), captureSessionStateCallback, null)
+//            }
         }
     }
 
@@ -240,7 +208,7 @@ class Camera2Activity : AppCompatActivity() {
 //        }
 
 //        val outputSize = bestSize ?: sortedSet.last()
-        val outputSize = OutputSize(1920, 1080)
+        val outputSize = OutputSize(640, 480)
 
         Log.i(TAG, "chooseOptimalSize: bestSize --- $outputSize")
 
@@ -250,7 +218,7 @@ class Camera2Activity : AppCompatActivity() {
             layoutParams.height = outputSize.width
             layoutParams.width = outputSize.height
             mTextureView.layoutParams = layoutParams
-            mTextureView.surfaceTexture?.setDefaultBufferSize(outputSize.width, outputSize.height)
+            mTextureView.surfaceTexture?.setDefaultBufferSize(outputSize.height, outputSize.width)
         }
         mOutputSize = outputSize
     }
